@@ -182,14 +182,24 @@ class FishingGameAnalysis:
         return sum(fish * probability for fish, probability in pdf.items())
 
 
+def flatten_pdf(pdf_dict):
+    return [float(pdf_dict[i]) for i in range(len(analysis.FULL_NET) + 1)]
+
+
 def main():
     global analysis
     analysis = FishingGameAnalysis()
 
-    def flatten_pdf(pdf_dict):
-        return [float(pdf_dict[i]) for i in range(len(analysis.FULL_NET) + 1)]
-
     print(flatten_pdf(analysis.net_pdf(analysis.FULL_NET)))
+
+    smaller_flag = False
+    for net_choices, optimal_net in analysis.optimal_choices.items():
+        biggest_net_size = max(len(net) for net in net_choices)
+        if len(optimal_net) != biggest_net_size:
+            print("Chose smaller net {} out of {}".format(optimal_net, net_choices))
+            smaller_flag = True
+    if not smaller_flag:
+        print("Always chose nets with more dice")
 
 
 if __name__ == "__main__":
