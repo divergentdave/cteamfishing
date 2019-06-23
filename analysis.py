@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import collections
 import fractions
 import functools
 import operator
@@ -16,18 +17,17 @@ class FishingGameAnalysis:
         """
         The input of this function is a tuple of which dice are in the net
         before rolling.
-        The output of this function is a list representing the probability
-        distribution of playing out the game from this roll until the end of
-        the cast. The probability of getting some number of fish over the rest
-        of the cast can be obtained by looking up that number as an index in
-        the list. (The list should thus have a sum of 1)
+        The output of this function is a dictionary representing the
+        probability distribution of playing out the game from this roll until
+        the end of the cast. The probability of getting some number of fish
+        over the rest of the cast can be obtained by looking up that number
+        as a key in the dictionary. (The values in the dictionary should thus
+        have a sum of 1)
         """
         if net in self.net_pdf_memo:
             return self.net_pdf_memo[net]
 
-        pdf_accum = [
-            fractions.Fraction(0) for _ in range(len(self.FULL_NET) + 1)
-        ]
+        pdf_accum = collections.defaultdict(lambda: fractions.Fraction(0))
         if len(net) == 0:
             pdf_accum[0] = fractions.Fraction(1)
             self.net_pdf_memo[net] = pdf_accum
@@ -37,8 +37,8 @@ class FishingGameAnalysis:
 
         def catch_update_pdf(next_net, factor):
             temp_pdf = self.net_pdf(next_net)
-            for i in range(len(temp_pdf) - 1):
-                pdf_accum[i + 1] += temp_pdf[i] / factor
+            for fish, probability in temp_pdf.items():
+                pdf_accum[fish + 1] += probability / factor
 
         # special case: 1
         for dice in self.roll_gen(net):
@@ -63,7 +63,7 @@ class FishingGameAnalysis:
         next_net = self.choose_next_net(list(self.nat20_next_nets(net)))
         catch_update_pdf(next_net, 20)
 
-        assert sum(pdf_accum) == 1
+        assert sum(pdf_accum.values()) == 1
         self.net_pdf_memo[net] = pdf_accum
         return pdf_accum
 
@@ -179,13 +179,17 @@ class FishingGameAnalysis:
         return optimal_net
 
     def pdf_to_ev(self, pdf):
-        return sum(fish * probability for fish, probability in enumerate(pdf))
+        return sum(fish * probability for fish, probability in pdf.items())
 
 
 def main():
     global analysis
     analysis = FishingGameAnalysis()
-    print([float(x) for x in analysis.net_pdf(analysis.FULL_NET)])
+
+    def flatten_pdf(pdf_dict):
+        return [float(pdf_dict[i]) for i in range(len(analysis.FULL_NET) + 1)]
+
+    print(flatten_pdf(analysis.net_pdf(analysis.FULL_NET)))
 
 
 if __name__ == "__main__":
