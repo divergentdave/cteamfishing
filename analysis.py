@@ -10,6 +10,7 @@ class FishingGameAnalysis:
     def __init__(self):
         self.optimal_choices = {}
         self.net_pdf_memo = {}
+        self.subset_sum_memo = {}
 
     def net_pdf(self, net):
         """
@@ -108,35 +109,62 @@ class FishingGameAnalysis:
                 dedup.add(next_net)
                 yield next_net
 
-    def add_sub_next_nets(self, net, dice, target):
-        def subset_sums(remaining_indices):
-            if remaining_indices:
+    def subset_sums_cached(self, numbers, target):
+        """
+        Given a set of numbers and a target number, returns a sequence of
+        tuples of indices into the input numbers, so that for any such tuple,
+        sum(numbers[i] for i in tuple) will be equal to the target number.
+        Internally, the results are cached, and the numbers are sorted to take
+        advantage of symmetries when caching results, but this doesn't affect
+        the indices that are returned.
+        """
+        numbers_and_indices = zip(numbers, range(len(numbers)))
+        numbers_and_indices_sorted = sorted(numbers_and_indices)
+        numbers_sorted = tuple(tup[0] for tup in numbers_and_indices_sorted)
+
+        def subset_sums(remaining_metaindices):
+            if remaining_metaindices:
                 for partial_sum, partial_subset in subset_sums(
-                            remaining_indices[1:]):
-                    die = dice[remaining_indices[0]]
+                        remaining_metaindices[1:]):
+                    number = numbers_sorted[remaining_metaindices[0]]
                     yield (
-                        partial_sum - die,
-                        (remaining_indices[0],) + partial_subset
+                        partial_sum - number,
+                        (remaining_metaindices[0],) + partial_subset
                     )
                     yield partial_sum, partial_subset
                     yield (
-                        partial_sum + die,
-                        (remaining_indices[0],) + partial_subset
+                        partial_sum + number,
+                        (remaining_metaindices[0],) + partial_subset
                     )
             else:
                 yield 0, ()
 
+        if numbers_sorted not in self.subset_sum_memo:
+            self.subset_sum_memo[numbers_sorted] = {
+                n: [] for n in range(2, 20)
+            }
+            for total, metaindices in subset_sums(list(range(len(numbers)))):
+                if total >= 2 and total <= 19:
+                    self.subset_sum_memo[numbers_sorted][total].append(
+                        metaindices
+                    )
+        for metaindices in self.subset_sum_memo[numbers_sorted][target]:
+            yield [
+                numbers_and_indices_sorted[metaindex][1]
+                for metaindex in metaindices
+            ]
+
+    def add_sub_next_nets(self, net, dice, target):
         dedup = set()
-        for sum_, indices in subset_sums(list(range(len(dice)))):
-            if sum_ == target:
-                next_net = tuple(
-                    net[i]
-                    for i in range(len(net))
-                    if i not in indices
-                )
-                if next_net not in dedup:
-                    dedup.add(next_net)
-                    yield next_net
+        for indices in self.subset_sums_cached(dice, target):
+            next_net = tuple(
+                net[i]
+                for i in range(len(net))
+                if i not in indices
+            )
+            if next_net not in dedup:
+                dedup.add(next_net)
+                yield next_net
 
     def choose_next_net(self, next_net_choices):
         if len(next_net_choices) == 1:
