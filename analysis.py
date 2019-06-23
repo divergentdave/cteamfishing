@@ -182,15 +182,28 @@ class FishingGameAnalysis:
         return sum(fish * probability for fish, probability in pdf.items())
 
 
-def flatten_pdf(pdf_dict):
-    return [float(pdf_dict[i]) for i in range(len(analysis.FULL_NET) + 1)]
+def flatten_pdf(pdf_dict, max_idx):
+    return [float(pdf_dict[i]) for i in range(max_idx + 1)]
+
+
+def convolve_pdf(pdf1, pdf2):
+    result = collections.defaultdict(lambda: fractions.Fraction(0))
+    max_value = max(pdf1.keys()) + max(pdf2.keys())
+    for i in range(max_value + 1):
+        result[i] = sum(
+            pdf1[j] * pdf2[i - j]
+            for j in range(max_value + 1)
+            if j in pdf1 and (i - j) in pdf2
+        )
+    return result
 
 
 def main():
     global analysis
     analysis = FishingGameAnalysis()
 
-    print(flatten_pdf(analysis.net_pdf(analysis.FULL_NET)))
+    net_pdf = analysis.net_pdf(analysis.FULL_NET)
+    print(flatten_pdf(net_pdf, len(analysis.FULL_NET)))
 
     smaller_flag = False
     for net_choices, optimal_net in analysis.optimal_choices.items():
@@ -200,6 +213,16 @@ def main():
             smaller_flag = True
     if not smaller_flag:
         print("Always chose nets with more dice")
+
+    # one game, five casts:
+    game_pdf = convolve_pdf(convolve_pdf(convolve_pdf(convolve_pdf(
+        net_pdf, net_pdf), net_pdf), net_pdf), net_pdf)
+    assert sum(game_pdf.values()) == 1
+    print("Game: {}".format(flatten_pdf(game_pdf, len(analysis.FULL_NET) * 5)))
+    # need 9 or more fish to win
+    print("Probability of winning is {}".format(float(
+        sum(probability for i, probability in game_pdf.items() if i >= 9)
+    )))
 
 
 if __name__ == "__main__":
